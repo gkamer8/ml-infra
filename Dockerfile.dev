@@ -1,0 +1,39 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    zsh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install oh-my-zsh
+RUN sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+
+# Enable autocompletion plugins
+RUN sed -i 's/plugins=(git)/plugins=(git pip python docker docker-compose)/' /root/.zshrc
+
+# Add .env file loading to zshrc if it exists
+RUN echo '\n# Load environment variables from .env if it exists' >> /root/.zshrc && \
+    echo 'if [ -f /infra/secrets/.env ]; then' >> /root/.zshrc && \
+    echo '    set -a' >> /root/.zshrc && \
+    echo '    source /infra/secrets/.env' >> /root/.zshrc && \
+    echo '    set +a' >> /root/.zshrc && \
+    echo 'fi' >> /root/.zshrc
+
+# Set zsh as default shell
+SHELL ["/bin/zsh", "-c"]
+
+# Set working directory
+WORKDIR /infra
+
+# Copy dependency files and install dependencies
+ENV UV_LINK_MODE=copy
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked
+
+# Default command
+CMD ["zsh"]
