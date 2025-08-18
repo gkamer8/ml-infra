@@ -23,3 +23,7 @@ If you'd prefer not to install these aliases, just run the scripts they would ma
 ```
 ./scripts/docker/start.sh && ./scripts/docker/into.sh
 ```
+
+### Not on git usage
+
+It is recommended to use git inside the docker container. If you're on a Mac, you might be using the osxkeychain credential helper, which is awkward. There are a number of other failure modes as well. However, if you switch to SSH URLs (recommended) using `git remote set-url origin git@github.com:gkamer8/ml-infra.git`, your problems should go away. The `start.sh` script mounts your SSH credentials.
