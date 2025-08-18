@@ -16,6 +16,7 @@ echo "Starting ML development container..."
 docker run -d \
     --name $CONTAINER_NAME \
     -v "$PROJECT_ROOT":/infra \
+    -v "$PROJECT_ROOT/scripts/.zshrc":/root/.zshrc \
     -v "$HOME/.ssh":/root/.ssh:ro \
     -v "$HOME/.gitconfig":/root/.gitconfig:ro \
     $([ -f "$HOME/.git-credentials" ] && echo "-v $HOME/.git-credentials:/root/.git-credentials:ro" || echo "") \
