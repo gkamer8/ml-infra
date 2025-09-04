@@ -37,6 +37,31 @@ if [ -f /infra/secrets/.env ]; then
 fi
 
 
+# UV command protection and aliases
+# Save the original uv command path
+UV_ORIGINAL_PATH=$(which uv 2>/dev/null)
+
+# Function to intercept uv commands
+uv() {
+    # Check if this is the allowed system install command
+    if [[ "$*" == "pip install --system -e /infra" ]]; then
+        # Execute the allowed command using the original uv
+        $UV_ORIGINAL_PATH "$@"
+    else
+        echo "❌ You shouldn't use uv directly in this environment." >&2
+        echo "⚠️  This project uses system-wide Python packages installed in the Docker container." >&2
+        echo "" >&2
+        echo "📋 Instructions:" >&2
+        echo "  • To run scripts: python3 -m ml.path.to.script" >&2
+        echo "  • To use the CLI: submit [command]" >&2
+        echo "  • To reinstall the project: reinstall" >&2
+        return 1
+    fi
+}
+
+# Alias for reinstalling the project
+alias reinstall="$UV_ORIGINAL_PATH pip install --system -e /infra && echo '✅ Project reinstalled successfully!'"
+
 # Remove first segment of the prompt
 prompt_context() {
   # Empty function to hide username@hostname segment
@@ -49,4 +74,4 @@ prompt_status() {
 echo "🚀 ML Development Environment Ready!"
 echo "📁 Working directory: $(pwd)"
 echo "🐍 Python: $(which python) ($(python --version 2>&1))"
-echo ""
+echo "🔧 Use the 'reinstall' alias to reinstall the project packages"

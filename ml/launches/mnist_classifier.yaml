@@ -1,0 +1,9 @@
+name: mnist-classifier-training
+
+workload:
+  training_fn: ml.training.mnist_train.training_loop
+
+  experiment_tracker:
+    wandb:
+      entity: mnist
+      project: mnist-classifier-training
