@@ -1,7 +1,8 @@
 # Default configuration for MNIST Classifier
+model_class: ml.models.classifier.classifier.Classifier
 
 # Model architecture parameters
-model_params:
+model_kwargs:
   in_channels: 1          # Number of input channels (1 for grayscale, 3 for RGB)
   n_classes: 10          # Number of output classes (default for MNIST digits)
   n_layers: 2           # Number of convolutional layers
@@ -9,14 +10,3 @@ model_params:
   kernel_size: 5        # Size of convolutional kernels
   input_size: [28, 28]  # Input image dimensions (height, width)
   dropout_rate: 0.0     # Dropout probability (0 to disable)
-
-# Description of architecture
-description: |
-  A configurable CNN classifier with:
-  - Dynamic number of convolutional layers
-  - Progressive filter size doubling
-  - Optional dropout regularization
-  - Configurable for various input sizes and number of classes
-  
-# Default configuration is optimized for MNIST dataset
-dataset: "MNIST"

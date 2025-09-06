@@ -1,0 +1,7 @@
+get_data_loaders_function: ml.datasets.mnist.mnist.get_data_loaders
+
+data_kwargs:
+  batch_size: 64
+  num_workers: 2
+  pin_memory: true
+  random_flip: true

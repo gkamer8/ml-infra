@@ -30,7 +30,7 @@ def launch(config_path: str) -> None:
     #
 
     # Get the training function as a string
-    training_function_str: str = launch_config.workload.training_fn
+    training_function_str: str = launch_config.training.training_function
     
     # Split the module path and function name
     module_path, function_name = training_function_str.rsplit('.', 1)
@@ -42,7 +42,7 @@ def launch(config_path: str) -> None:
     training_function = getattr(training_module, function_name)
     
     # Call the training function with the launch config
-    training_function()
+    training_function(launch_config)
 
 
 def show_version() -> None:

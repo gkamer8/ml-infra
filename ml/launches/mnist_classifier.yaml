@@ -1,9 +1,13 @@
+defaults:
+  - _self_
+  - ../training/classifier_training/classifier_training@training
+  - ../models/classifier/classifier@model
+  - ../datasets/mnist/mnist@data
+  - ../validation/classifier/classifier_validation@validation
+
 name: mnist-classifier-training
 
-workload:
-  training_fn: ml.training.mnist_train.training_loop
-
-  experiment_tracker:
-    wandb:
-      entity: mnist
-      project: mnist-classifier-training
+experiment_tracker:
+  wandb:
+    entity: mnist
+    project: mnist-classifier-training
