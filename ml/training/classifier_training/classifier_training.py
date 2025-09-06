@@ -70,6 +70,8 @@ def training_loop(launch_config: DictConfig):
     model_class = getattr(model_module, model_class_str)
     model: nn.Module = model_class(**model.model_kwargs)
 
+    model = torch.compile(model)
+    
     # Get data loaders
     get_data_loaders_str = launch_config.data.get_data_loaders_function
     get_data_loaders_module_str, get_data_loaders_function_str = get_data_loaders_str.rsplit('.', 1)
@@ -96,7 +98,6 @@ def training_loop(launch_config: DictConfig):
         device = torch.device('cpu')
 
     print(f"Using device: {device}")
-
     model.to(device)
 
     learning_rate: float = launch_config.training.training_config.learning_rate
