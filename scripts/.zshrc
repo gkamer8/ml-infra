@@ -17,6 +17,11 @@ plugins=(
 # Load oh-my-zsh
 source $ZSH/oh-my-zsh.sh
 
+export HISTFILE=/root/.docker-zsh/.zsh_history
+export HISTSIZE=200000
+export SAVEHIST=200000
+setopt APPEND_HISTORY INC_APPEND_HISTORY
+
 # User configuration
 export EDITOR='vim'
 

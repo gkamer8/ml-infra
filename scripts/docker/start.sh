@@ -20,6 +20,7 @@ docker run -d \
     -v "$PROJECT_ROOT/secrets/.env":/infra/secrets/.env \
     -v "$HOME/.ssh":/root/.ssh:ro \
     -v "$HOME/.gitconfig":/root/.gitconfig:ro \
+    -v ~/.docker-zsh:/root/.docker-zsh \
     $([ -f "$HOME/.git-credentials" ] && echo "-v $HOME/.git-credentials:/root/.git-credentials:ro" || echo "") \
     $IMAGE_NAME tail -f /dev/null
 
