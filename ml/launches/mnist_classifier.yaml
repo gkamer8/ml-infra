@@ -5,9 +5,8 @@ defaults:
   - ../datasets/mnist/mnist@data
   - ../validation/classifier/classifier_validation@validation
 
-name: mnist-classifier-training
+name: mnist-classifier-training-test
 
-experiment_tracker:
-  wandb:
-    entity: mnist
-    project: mnist-classifier-training
+wandb:
+  entity: null  # Set using env variable
+  project: mnist-classifier-training-test

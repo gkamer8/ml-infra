@@ -5,6 +5,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import time
+import wandb
+import os
+import tempfile
 
 
 DATA_CACHE_DIR = "/tmp/mnist"
@@ -22,7 +25,7 @@ def train_epoch(
     """
     Train the model for one epoch.
     """
-
+    model.train()
     running_loss = 0.0
     total = 0
     correct = 0
@@ -49,8 +52,15 @@ def train_epoch(
         total += target.size(0)
         correct += (predicted == target).sum().item()
 
-        # Log progress
+        # Log batch metrics to wandb
         if batch_idx % log_interval == 0:
+            batch_accuracy = 100. * (predicted == target).sum().item() / target.size(0)
+            wandb.log({
+                "batch/train_loss": loss.item(),
+                "batch/train_accuracy": batch_accuracy,
+                "batch/step": epoch * len(train_loader) + batch_idx
+            })
+            
             print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
                   f'({100. * batch_idx / len(train_loader):.0f}%)]\t'
                   f'Loss: {loss.item():.6f}')
@@ -71,7 +81,7 @@ def training_loop(launch_config: DictConfig):
     model: nn.Module = model_class(**model.model_kwargs)
 
     model = torch.compile(model)
-    
+
     # Get data loaders
     get_data_loaders_str = launch_config.data.get_data_loaders_function
     get_data_loaders_module_str, get_data_loaders_function_str = get_data_loaders_str.rsplit('.', 1)
@@ -87,6 +97,30 @@ def training_loop(launch_config: DictConfig):
     validate_module_str, validate_function_str = validate_str.rsplit('.', 1)
     validate_module = importlib.import_module(validate_module_str)
     validate = getattr(validate_module, validate_function_str)
+
+    # Set up experiment tracker
+
+    WANDB_API_KEY = os.getenv("WANDB_API_KEY")
+    if not WANDB_API_KEY:
+        raise ValueError("WANDB_API_KEY is not set")
+
+    wandb.login(
+        key=os.getenv("WANDB_API_KEY")
+    )
+
+    wandb_entity = launch_config.wandb.entity
+    if not wandb_entity:
+        wandb_entity = os.getenv("WANDB_USERNAME")
+    wandb_project = launch_config.wandb.project
+    
+    # Initialize wandb with configuration
+    wandb.init(
+        project=wandb_project,
+        entity=wandb_entity,
+        config=dict(launch_config),
+        dir="/tmp/wandb",
+        name=launch_config.name
+    )
 
     device = None
     if torch.cuda.is_available():
@@ -121,6 +155,9 @@ def training_loop(launch_config: DictConfig):
         patience=3,
     )
 
+    # Watch the model with wandb (logs gradients and parameters)
+    wandb.watch(model, criterion, log="all", log_freq=100)
+    
     start_epoch = 1
     best_val_accuracy = 0.0
     for epoch in range(start_epoch, epochs + 1):
@@ -140,11 +177,26 @@ def training_loop(launch_config: DictConfig):
         # Calculate epoch time
         epoch_time = time.time() - start_time
         
+        # Get current learning rate
+        current_lr = optimizer.param_groups[0]['lr']
+        
+        # Log epoch metrics to wandb
+        wandb.log({
+            "epoch": epoch,
+            "epoch/train_loss": train_loss,
+            "epoch/train_accuracy": train_acc,
+            "epoch/val_loss": val_loss,
+            "epoch/val_accuracy": val_acc,
+            "epoch/learning_rate": current_lr,
+            "epoch/time_seconds": epoch_time
+        })
+        
         # Print epoch summary
         print(f"\nEpoch {epoch} Summary:")
         print(f"  Time: {epoch_time:.2f}s")
         print(f"  Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
         print(f"  Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
+        print(f"  Learning Rate: {current_lr:.6f}")
         
         # Learning rate scheduling
         scheduler.step(val_acc)
@@ -152,13 +204,66 @@ def training_loop(launch_config: DictConfig):
         # Save checkpoint if validation accuracy improved
         if val_acc > best_val_accuracy:
             best_val_accuracy = val_acc
-            # TODO: Save checkpoint
+            print(f"  New best validation accuracy: {val_acc:.2f}%")
+            
+            # Save model checkpoint
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'val_accuracy': val_acc,
+                'val_loss': val_loss,
+                'train_accuracy': train_acc,
+                'train_loss': train_loss,
+            }
+            
+            # Save checkpoint to a temporary file
+            with tempfile.NamedTemporaryFile(mode='wb', suffix=f'_epoch_{epoch}.pt', delete=False) as tmp_file:
+                checkpoint_path = tmp_file.name
+                torch.save(checkpoint, checkpoint_path)
+            
+            try:
+                # Log model artifact to wandb
+                artifact = wandb.Artifact(
+                    name=f"model-checkpoint",
+                    type="model",
+                    description=f"Best model checkpoint with {val_acc:.2f}% validation accuracy",
+                    metadata={
+                        "epoch": epoch,
+                        "val_accuracy": val_acc,
+                        "val_loss": val_loss,
+                        "train_accuracy": train_acc,
+                        "train_loss": train_loss
+                    }
+                )
+                artifact.add_file(checkpoint_path)
+                wandb.log_artifact(artifact)
+            finally:
+                # Clean up the temporary file
+                if os.path.exists(checkpoint_path):
+                    os.unlink(checkpoint_path)
     
     print("\n" + "="*60)
     print("Training Complete!")
     print(f"Best Validation Accuracy: {best_val_accuracy:.2f}%")
     print("="*60)
+    
+    # Log final summary to wandb
+    wandb.summary["best_val_accuracy"] = best_val_accuracy
+    wandb.summary["final_train_accuracy"] = train_acc
+    wandb.summary["final_train_loss"] = train_loss
+    wandb.summary["final_val_loss"] = val_loss
+    wandb.summary["total_epochs"] = epochs
+    
+    # Finish the wandb run
+    wandb.finish()
 
 
 if __name__ == "__main__":
-    exit(training_loop())
+    try:
+        training_loop(None)
+    except Exception as e:
+        # If an error occurs, make sure to finish the wandb run
+        wandb.finish(exit_code=1)
+        raise e
