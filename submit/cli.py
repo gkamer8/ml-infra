@@ -2,12 +2,32 @@
 
 import argparse
 import sys
-import importlib
-import inspect
-from pathlib import Path
 from importlib.metadata import version
-from hydra import initialize_config_dir, compose
-from omegaconf import DictConfig, OmegaConf
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.theme import Theme
+from submit.launch import launch as imported_launch
+
+
+from submit.cloud_providers.aggregate import (
+    get_available_cloud_providers,
+    CLOUD_PROVIDERS,
+)
+
+
+custom_theme = Theme({
+    "header": "bold cyan",
+    "success": "green",
+    "error": "red",
+    "muted": "dim",
+})
+
+console = Console(theme=custom_theme)
+
+
+def print_header(text: str) -> None:
+    console.print(Panel.fit(f"[header]{text}[/header]", border_style="cyan"))
 
 
 def launch(config_path: str) -> None:
@@ -16,44 +36,34 @@ def launch(config_path: str) -> None:
     Args:
         config_path: Path to the configuration YAML file
     """
-    # Parse the config path to get directory and config name
-    config_path = Path(config_path)
-    config_dir = config_path.parent.absolute()
-    config_name = config_path.name  # stem also works
-    
-    # Initialize Hydra with the config directory
-    with initialize_config_dir(config_dir=str(config_dir), version_base=None):
-        # Compose the configuration
-        launch_config: DictConfig = compose(config_name=config_name)
-    #   
-    # Run the training loop
-    #
-
-    # Get the training function as a string
-    training_function_str: str = launch_config.training.training_function
-    
-    # Split the module path and function name
-    module_path, function_name = training_function_str.rsplit('.', 1)
-    
-    # Dynamically import the module
-    training_module = importlib.import_module(module_path)
-    
-    # Get the function from the module
-    training_function = getattr(training_module, function_name)
-    
-    # Call the training function with the launch config
-    training_function(launch_config)
+    imported_launch(config_path)
 
 
 def show_version() -> None:
     """Show the version of the submit CLI."""
     pkg_version = version("ml-infra")
-    print(pkg_version)
+    console.print(f"[success]{pkg_version}[/success]")
 
 
 def resources() -> None:
     """Show available resources."""
-    print("[Placeholder] Showing available resources")
+    available_cloud_providers = get_available_cloud_providers()
+    
+    print_header("Cloud Providers")
+    
+    table = Table(show_header=True, header_style="bold", box=None)
+    table.add_column("Provider", style="bold")
+    table.add_column("Status")
+    table.add_column("Instances")
+    for cloud_provider in CLOUD_PROVIDERS:
+        is_avail = cloud_provider in available_cloud_providers
+        if is_avail:
+            instances = cloud_provider.get_instances()
+            status = f"[success]AVAILABLE[/success]"
+        else:
+            status = "[error]UNAVAILABLE[/error]"
+        table.add_row(cloud_provider.name, status, str(len(instances)))
+    console.print(table)
 
 
 def info(launch_id: str) -> None:
@@ -62,7 +72,7 @@ def info(launch_id: str) -> None:
     Args:
         launch_id: The ID of the launch to get information about
     """
-    print(f"[Placeholder] Showing info for launch ID: {launch_id}")
+    console.print(f"[muted][Placeholder][/muted] Showing info for launch ID: [bold]{launch_id}[/bold]")
 
 
 def main():
